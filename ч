@@ -1,0 +1,177 @@
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX 100
+
+// structure
+typedef struct {
+    char player1[50];
+    char player2[50];
+    int score1;
+    int score2;
+} Match;
+
+Match matches[MAX];
+int matchCount = 0;
+
+// clear screen
+void clearScreen() {
+    system("cls"); // use "clear" on Linux/Mac
+}
+
+// save to file
+void saveToFile() {
+    FILE* f = fopen("data.txt", "w");
+
+    if (f == NULL) return;
+
+    fprintf(f, "%d\n", matchCount);
+    for (int i = 0; i < matchCount; i++) {
+        fprintf(f, "%s %d %s %d\n",
+            matches[i].player1,
+            matches[i].score1,
+            matches[i].player2,
+            matches[i].score2);
+    }
+
+    fclose(f);
+}
+
+// load from file
+void loadFromFile() {
+    FILE* f = fopen("data.txt", "r");
+
+    if (f == NULL) return;
+
+    fscanf(f, "%d", &matchCount);
+    for (int i = 0; i < matchCount; i++) {
+        fscanf(f, "%s %d %s %d",
+            matches[i].player1,
+            &matches[i].score1,
+            matches[i].player2,
+            &matches[i].score2);
+    }
+
+    fclose(f);
+}
+
+// add match submenu
+void addMatch() {
+    clearScreen();
+    printf("=== ADD MATCH ===\n");
+
+    printf("Player 1: ");
+    scanf("%s", matches[matchCount].player1);
+
+    printf("Score 1: ");
+    scanf("%d", &matches[matchCount].score1);
+
+    printf("Player 2: ");
+    scanf("%s", matches[matchCount].player2);
+
+    printf("Score 2: ");
+    scanf("%d", &matches[matchCount].score2);
+
+    matchCount++;
+
+    printf("\nMatch added!\n");
+    printf("Press Enter to return...");
+    getchar(); getchar();
+
+    clearScreen();
+}
+
+// show matches submenu
+void showMatches() {
+    clearScreen();
+    printf("=== MATCH LIST ===\n");
+
+    for (int i = 0; i < matchCount; i++) {
+        printf("%s %d - %d %s\n",
+            matches[i].player1,
+            matches[i].score1,
+            matches[i].score2,
+            matches[i].player2);
+    }
+
+    printf("\nPress Enter to return...");
+    getchar(); getchar();
+
+    clearScreen();
+}
+
+// ranking submenu
+void showRanking() {
+    clearScreen();
+    printf("=== RANKING ===\n");
+
+    char players[MAX][50];
+    int wins[MAX] = { 0 };
+    int playerCount = 0;
+
+    for (int i = 0; i < matchCount; i++) {
+        int p1 = -1, p2 = -1;
+
+        // find player1
+        for (int j = 0; j < playerCount; j++) {
+            if (strcmp(players[j], matches[i].player1) == 0)
+                p1 = j;
+        }
+
+        if (p1 == -1) {
+            strcpy(players[playerCount], matches[i].player1);
+            p1 = playerCount++;
+        }
+
+        // find player2
+        for (int j = 0; j < playerCount; j++) {
+            if (strcmp(players[j], matches[i].player2) == 0)
+                p2 = j;
+        }
+
+        if (p2 == -1) {
+            strcpy(players[playerCount], matches[i].player2);
+            p2 = playerCount++;
+        }
+
+        // add wins
+        if (matches[i].score1 > matches[i].score2)
+            wins[p1]++;
+        else
+            wins[p2]++;
+    }
+
+    for (int i = 0; i < playerCount; i++) {
+        printf("%s - Wins: %d\n", players[i], wins[i]);
+    }
+
+    printf("\nPress Enter to return...");
+    getchar(); getchar();
+
+    clearScreen();
+}
+
+// main menu
+void menu() {
+    int choice;
+
+    do {
+        printf("=== MAIN MENU ===\n");
+        printf("1. Add Match\n");
+        printf("2. Show Matches\n");
+        printf("3. Show Ranking\n");
+        printf("0. Exit\n");
+        printf("Choice: ");
+
+        scanf("%d", &choice);
+
+        switch (choice) {
+        case 1: addMatch(); break;
+        case 2: showMatches(); break;
+        case 3: showRanking(); break;
+        }
+
+    } while (choice != 0);
+}
