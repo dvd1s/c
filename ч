@@ -1,177 +1,368 @@
-#define _CRT_SECURE_NO_WARNINGS
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#define _CRT_SECURE_NO_WARNINGS   // Disables Visual Studio warnings about old C functions like scanf
+#include <stdio.h>                 // For printf, scanf, FILE, fopen, fclose, fprintf, fscanf
+#include <stdlib.h>                // For system() used in clearScreen
+#include <string.h>                // For strcmp (compare strings), strcpy (copy strings), strlen
 
-#define MAX 100
+#define MAX 100   // Maximum number of matches we can store
 
-// structure
+// ─── COLORS ───────────────────────────────────────────────────────────────────
+// These are special text codes that change terminal text color
+// \033[ starts the color code, the number picks the color, m ends it
+// RESET goes back to normal white text
+#define RESET   "\033[0m"    // Back to normal color
+#define RED     "\033[31m"   // Red text
+#define GREEN   "\033[32m"   // Green text
+#define YELLOW  "\033[33m"   // Yellow text
+#define CYAN    "\033[36m"   // Cyan (light blue) text
+#define BOLD    "\033[1m"    // Bold text
+
+// ─── STRUCTURE ────────────────────────────────────────────────────────────────
+// A struct groups related variables together under one name
+// This struct stores all info about one match
 typedef struct {
-    char player1[50];
-    char player2[50];
-    int score1;
-    int score2;
-} Match;
+    char player1[50];   // Name of player 1 (up to 49 characters)
+    char player2[50];   // Name of player 2 (up to 49 characters)
+    int  score1;        // Score of player 1
+    int  score2;        // Score of player 2
+} Match;                // We name this struct type "Match"
 
-Match matches[MAX];
-int matchCount = 0;
+// ─── GLOBAL VARIABLES ─────────────────────────────────────────────────────────
+Match matches[MAX];   // Array that holds all matches (up to MAX=100)
+int   matchCount = 0; // How many matches are currently stored (starts at 0)
 
-// clear screen
+// ─── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
+
+// Clears the console screen so it looks clean
 void clearScreen() {
-    system("cls"); // use "clear" on Linux/Mac
+    system("cls");   // "cls" is the Windows command to clear the screen
 }
 
-// save to file
+// Waits for the user to press Enter, then clears the screen
+void pauseScreen() {
+    printf("\nPress Enter to return...");   // Tell user what to do
+    getchar();   // Consume the leftover newline from previous scanf
+    getchar();   // Wait for user to actually press Enter
+    clearScreen();   // Clear screen after they press Enter
+}
+
+// Enables ANSI color codes on Windows (needed for colors to work)
+void enableColors() {
+#ifdef _WIN32              // Only runs this on Windows
+    system("color");       // Windows command that enables ANSI color support
+#endif
+}
+
+// ─── FILE FUNCTIONS ───────────────────────────────────────────────────────────
+
+// Saves all matches to a file called data.txt
 void saveToFile() {
-    FILE* f = fopen("data.txt", "w");
+    FILE* f = fopen("data.txt", "w");   // Open data.txt for writing ("w" = write mode, creates file if missing)
+    if (f == NULL) {                     // If file couldn't be opened (e.g. no permission)
+        printf(RED "Error: Could not save data to file!\n" RESET);   // Show error in red
+        return;   // Stop the function
+    }
 
-    if (f == NULL) return;
+    fprintf(f, "%d\n", matchCount);   // First line in file = number of matches stored
 
-    fprintf(f, "%d\n", matchCount);
-    for (int i = 0; i < matchCount; i++) {
-        fprintf(f, "%s %d %s %d\n",
+    for (int i = 0; i < matchCount; i++) {   // Loop through every match
+        fprintf(f, "%s %d %s %d\n",          // Write one match per line: name score name score
             matches[i].player1,
             matches[i].score1,
             matches[i].player2,
             matches[i].score2);
     }
 
-    fclose(f);
+    fclose(f);   // Always close the file after writing
 }
 
-// load from file
+// Loads matches from data.txt when the program starts
 void loadFromFile() {
-    FILE* f = fopen("data.txt", "r");
+    FILE* f = fopen("data.txt", "r");   // Open data.txt for reading ("r" = read mode)
+    if (f == NULL) return;              // If file doesn't exist yet, do nothing (first run)
 
-    if (f == NULL) return;
+    fscanf(f, "%d", &matchCount);   // Read first line = number of matches
 
-    fscanf(f, "%d", &matchCount);
-    for (int i = 0; i < matchCount; i++) {
+    for (int i = 0; i < matchCount; i++) {   // Loop and read each match
         fscanf(f, "%s %d %s %d",
-            matches[i].player1,
-            &matches[i].score1,
-            matches[i].player2,
-            &matches[i].score2);
+            matches[i].player1,    // Read player 1 name
+            &matches[i].score1,    // Read player 1 score (& means "store here")
+            matches[i].player2,    // Read player 2 name
+            &matches[i].score2);   // Read player 2 score
     }
 
-    fclose(f);
+    fclose(f);   // Close the file after reading
 }
 
-// add match submenu
+// ─── VALIDATION HELPERS ───────────────────────────────────────────────────────
+
+// Reads and validates a player name from the user
+// prompt = the message shown to the user
+// out    = where to store the valid name
+// Returns 1 if valid, 0 if invalid
+int readName(const char* prompt, char* out) {
+    char buf[100];          // Temporary buffer to store what user types
+    printf("%s", prompt);   // Show the prompt message
+    scanf("%s", buf);       // Read what user typed (stops at space)
+
+    int len = strlen(buf);   // Count how many characters they typed
+
+    if (len < 2 || len > 49) {   // Name must be between 2 and 49 characters
+        printf(RED "  Invalid! Name must be 2-49 characters.\n" RESET);
+        return 0;   // Return 0 = invalid
+    }
+
+    for (int i = 0; i < len; i++) {   // Check every character in the name
+        if (!((buf[i] >= 'A' && buf[i] <= 'Z') ||   // Uppercase letter?
+            (buf[i] >= 'a' && buf[i] <= 'z') ||   // Lowercase letter?
+            buf[i] == '-')) {                     // Hyphen allowed (e.g. "Jean-Pierre")
+            printf(RED "  Invalid! Name must contain only letters.\n" RESET);
+            return 0;   // Return 0 = invalid
+        }
+    }
+
+    strcpy(out, buf);   // Copy the valid name into the output variable
+    return 1;           // Return 1 = valid
+}
+
+// Reads and validates a score from the user
+// prompt = the message shown to the user
+// out    = where to store the valid score
+// Returns 1 if valid, 0 if invalid
+int readScore(const char* prompt, int* out) {
+    printf("%s", prompt);   // Show the prompt message
+    int val;
+
+    if (scanf("%d", &val) != 1) {          // If user didn't type a number
+        printf(RED "  Invalid! Please enter a number.\n" RESET);
+        while (getchar() != '\n');         // Clear the bad input from keyboard buffer
+        return 0;                          // Return 0 = invalid
+    }
+
+    if (val < 0 || val > 21) {   // Score must be between 0 and 21 (table tennis rules)
+        printf(RED "  Invalid! Score must be between 0 and 21.\n" RESET);
+        return 0;   // Return 0 = invalid
+    }
+
+    *out = val;   // Store the valid score (the * means "put value at this address")
+    return 1;     // Return 1 = valid
+}
+
+// ─── MENU FUNCTIONS ───────────────────────────────────────────────────────────
+
+// Adds a new match after asking the user for input
 void addMatch() {
-    clearScreen();
-    printf("=== ADD MATCH ===\n");
+    clearScreen();   // Clean screen before showing the form
+    printf(BOLD "=== ADD MATCH ===\n\n" RESET);   // Title in bold
 
-    printf("Player 1: ");
-    scanf("%s", matches[matchCount].player1);
+    if (matchCount >= MAX) {   // Check if we've hit the 100 match limit
+        printf(RED "Match list is full!\n" RESET);
+        pauseScreen();
+        return;   // Stop if full
+    }
 
-    printf("Score 1: ");
-    scanf("%d", &matches[matchCount].score1);
+    char p1[50], p2[50];   // Temporary variables for player names
+    int  s1, s2;           // Temporary variables for scores
 
-    printf("Player 2: ");
-    scanf("%s", matches[matchCount].player2);
+    printf(CYAN "Player 1\n" RESET);                                    // Section header in cyan
+    while (!readName("  Name (letters only, 2-49 chars): ", p1));       // Keep asking until valid name
+    while (!readScore("  Score (0-21): ", &s1));                        // Keep asking until valid score
 
-    printf("Score 2: ");
-    scanf("%d", &matches[matchCount].score2);
+    printf(CYAN "\nPlayer 2\n" RESET);                                  // Section header for player 2
+    while (!readName("  Name (letters only, 2-49 chars): ", p2));       // Keep asking until valid name
+    while (!readScore("  Score (0-21): ", &s2));                        // Keep asking until valid score
 
-    matchCount++;
+    if (s1 == s2) {   // Table tennis can't end in a draw
+        printf(RED "\n  Invalid! Scores cannot be equal (no draws in table tennis).\n" RESET);
+        pauseScreen();
+        return;   // Stop, don't save this match
+    }
 
-    printf("\nMatch added!\n");
-    printf("Press Enter to return...");
-    getchar(); getchar();
+    strcpy(matches[matchCount].player1, p1);   // Save player 1 name into the matches array
+    strcpy(matches[matchCount].player2, p2);   // Save player 2 name into the matches array
+    matches[matchCount].score1 = s1;           // Save player 1 score
+    matches[matchCount].score2 = s2;           // Save player 2 score
+    matchCount++;                              // Increase the match counter by 1
 
-    clearScreen();
+    saveToFile();   // Save to file immediately so data isn't lost
+
+    printf(GREEN "\n  Match saved successfully!\n" RESET);   // Confirm in green
+    pauseScreen();
 }
 
-// show matches submenu
+// Shows all recorded matches
 void showMatches() {
     clearScreen();
-    printf("=== MATCH LIST ===\n");
+    printf(BOLD "=== MATCH LIST ===\n\n" RESET);
 
-    for (int i = 0; i < matchCount; i++) {
-        printf("%s %d - %d %s\n",
-            matches[i].player1,
-            matches[i].score1,
-            matches[i].score2,
-            matches[i].player2);
+    if (matchCount == 0) {   // If no matches have been added yet
+        printf(YELLOW "  No matches recorded yet.\n" RESET);
+        pauseScreen();
+        return;
     }
 
-    printf("\nPress Enter to return...");
-    getchar(); getchar();
+    for (int i = 0; i < matchCount; i++) {              // Loop through all matches
+        int p1won = matches[i].score1 > matches[i].score2;  // 1 if player1 won, 0 if player2 won
 
-    clearScreen();
+        printf("  %d. ", i + 1);          // Print match number
+
+        printf(p1won ? GREEN : RED);       // If player1 won, print their name green, else red
+        printf("%s", matches[i].player1); // Print player 1 name
+        printf(RESET);                    // Reset color back to normal
+
+        printf(" %d - %d ", matches[i].score1, matches[i].score2);  // Print scores
+
+        printf(!p1won ? GREEN : RED);      // If player2 won, print their name green, else red
+        printf("%s", matches[i].player2); // Print player 2 name
+        printf(RESET "\n");               // Reset color and go to next line
+    }
+
+    pauseScreen();
 }
 
-// ranking submenu
+// Shows players ranked by number of wins
 void showRanking() {
     clearScreen();
-    printf("=== RANKING ===\n");
+    printf(BOLD "=== RANKING (by wins) ===\n\n" RESET);
 
-    char players[MAX][50];
-    int wins[MAX] = { 0 };
-    int playerCount = 0;
+    if (matchCount == 0) {   // No matches = no ranking to show
+        printf(YELLOW "  No matches recorded yet.\n" RESET);
+        pauseScreen();
+        return;
+    }
 
-    for (int i = 0; i < matchCount; i++) {
-        int p1 = -1, p2 = -1;
+    char players[MAX][50];    // Array of unique player names
+    int  wins[MAX] = { 0 }; // Wins count for each player (starts at 0)
+    int  losses[MAX] = { 0 }; // Losses count for each player (starts at 0)
+    int  playerCount = 0;     // How many unique players found so far
 
-        // find player1
+    for (int i = 0; i < matchCount; i++) {   // Go through every match
+        int p1 = -1, p2 = -1;               // -1 means "not found yet"
+
+        // Search if player1 is already in our players array
         for (int j = 0; j < playerCount; j++) {
-            if (strcmp(players[j], matches[i].player1) == 0)
-                p1 = j;
+            if (strcmp(players[j], matches[i].player1) == 0) p1 = j;  // Found at index j
+            if (strcmp(players[j], matches[i].player2) == 0) p2 = j;  // Found at index j
         }
 
-        if (p1 == -1) {
-            strcpy(players[playerCount], matches[i].player1);
-            p1 = playerCount++;
+        if (p1 == -1) {   // Player1 not found, add them
+            strcpy(players[playerCount], matches[i].player1);   // Copy name into array
+            p1 = playerCount++;   // Set index, then increment playerCount
         }
-
-        // find player2
-        for (int j = 0; j < playerCount; j++) {
-            if (strcmp(players[j], matches[i].player2) == 0)
-                p2 = j;
-        }
-
-        if (p2 == -1) {
+        if (p2 == -1) {   // Player2 not found, add them
             strcpy(players[playerCount], matches[i].player2);
             p2 = playerCount++;
         }
 
-        // add wins
-        if (matches[i].score1 > matches[i].score2)
-            wins[p1]++;
-        else
-            wins[p2]++;
+        // Add win/loss based on who scored more
+        if (matches[i].score1 > matches[i].score2) {
+            wins[p1]++;     // Player1 won
+            losses[p2]++;   // Player2 lost
+        }
+        else {
+            wins[p2]++;     // Player2 won
+            losses[p1]++;   // Player1 lost
+        }
     }
 
+    // Bubble sort: put player with most wins first
+    for (int i = 0; i < playerCount - 1; i++) {
+        for (int j = 0; j < playerCount - i - 1; j++) {
+            if (wins[j] < wins[j + 1]) {   // If current player has fewer wins than next
+                // Swap wins
+                int tmp = wins[j]; wins[j] = wins[j + 1]; wins[j + 1] = tmp;
+                // Swap losses
+                tmp = losses[j]; losses[j] = losses[j + 1]; losses[j + 1] = tmp;
+                // Swap names
+                char tmpName[50];
+                strcpy(tmpName, players[j]);
+                strcpy(players[j], players[j + 1]);
+                strcpy(players[j + 1], tmpName);
+            }
+        }
+    }
+
+    // Print the sorted ranking
     for (int i = 0; i < playerCount; i++) {
-        printf("%s - Wins: %d\n", players[i], wins[i]);
+        printf("  %d. ", i + 1);                              // Rank number
+        printf(CYAN "%s" RESET, players[i]);                  // Player name in cyan
+        printf(" - Wins: " GREEN "%d" RESET, wins[i]);        // Wins in green
+        printf(" | Losses: " RED "%d" RESET "\n", losses[i]); // Losses in red
     }
 
-    printf("\nPress Enter to return...");
-    getchar(); getchar();
-
-    clearScreen();
+    pauseScreen();
 }
 
-// main menu
+// Shows all matches for a specific player
+void showHistory() {
+    clearScreen();
+    printf(BOLD "=== PLAYER HISTORY ===\n\n" RESET);
+
+    char name[50];   // Will store the name the user searches for
+    while (!readName("  Player name (letters only, 2-49 chars): ", name));   // Keep asking until valid
+
+    printf("\n  Matches for " CYAN "%s" RESET ":\n\n", name);   // Show searched name in cyan
+
+    int found = 0;   // Flag: did we find any matches for this player?
+
+    for (int i = 0; i < matchCount; i++) {   // Loop through all matches
+        // Check if this match involves the searched player
+        if (strcmp(matches[i].player1, name) == 0 ||
+            strcmp(matches[i].player2, name) == 0) {
+
+            // Figure out if this player won this match
+            int won = (strcmp(matches[i].player1, name) == 0)
+                ? (matches[i].score1 > matches[i].score2)   // Player is p1, did p1 win?
+                : (matches[i].score2 > matches[i].score1);  // Player is p2, did p2 win?
+
+            printf("  %d. %s %d - %d %s",   // Print match info
+                i + 1,
+                matches[i].player1, matches[i].score1,
+                matches[i].score2, matches[i].player2);
+
+            // Print WIN in green or LOSS in red at the end of the line
+            printf("  [%s]\n", won ? GREEN "WIN" RESET : RED "LOSS" RESET);
+            found = 1;   // We found at least one match
+        }
+    }
+
+    if (!found)   // If no matches found for this player
+        printf(YELLOW "  No matches found for this player.\n" RESET);
+
+    pauseScreen();
+}
+
+// ─── MAIN MENU ────────────────────────────────────────────────────────────────
+
+// Shows the menu and handles user choice in a loop
 void menu() {
-    int choice;
+    int choice;   // Stores what the user picks
 
     do {
-        printf("=== MAIN MENU ===\n");
-        printf("1. Add Match\n");
-        printf("2. Show Matches\n");
-        printf("3. Show Ranking\n");
-        printf("0. Exit\n");
-        printf("Choice: ");
-
-        scanf("%d", &choice);
+        printf(BOLD "=== TABLE TENNIS MANAGER ===\n\n" RESET);   // App title in bold
+        printf("  " CYAN "1" RESET ". Add Match\n");              // Option 1 (number in cyan)
+        printf("  " CYAN "2" RESET ". Show All Matches\n");       // Option 2
+        printf("  " CYAN "3" RESET ". Show Ranking\n");           // Option 3
+        printf("  " CYAN "4" RESET ". Show Player History\n");    // Option 4
+        printf("  " CYAN "0" RESET ". Exit\n\n");                 // Option 0 = quit
+        printf("  Choice: ");
+        scanf("%d", &choice);   // Read what the user typed
 
         switch (choice) {
-        case 1: addMatch(); break;
-        case 2: showMatches(); break;
-        case 3: showRanking(); break;
+        case 1: addMatch();    break;   // Go to add match screen
+        case 2: showMatches(); break;   // Go to match list screen
+        case 3: showRanking(); break;   // Go to ranking screen
+        case 4: showHistory(); break;   // Go to player history screen
+        case 0: printf(GREEN "\n  Goodbye!\n" RESET); break;   // Exit message
+        default: printf(RED "  Invalid option. Try again.\n\n" RESET); break;  // Bad input
         }
-
-    } while (choice != 0);
+    } while (choice != 0);   // Keep showing menu until user picks 0
 }
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+
+int main() {
+    enableColors();   // Turn on color support in Windows terminal
+    loadFromFile();   // Load any previously saved matches from data.txt
+    menu();           // Show the menu and run the app
+    return 0;         // Return 0 = program ended successfully
+}w
