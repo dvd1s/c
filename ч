@@ -365,4 +365,4 @@ int main() {
     loadFromFile();   // Load any previously saved matches from data.txt
     menu();           // Show the menu and run the app
     return 0;         // Return 0 = program ended successfully
-}w
+}
